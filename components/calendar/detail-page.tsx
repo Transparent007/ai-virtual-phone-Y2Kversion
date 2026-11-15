@@ -7,6 +7,8 @@ import type { MenstrualDayState } from "@/lib/menstrual-storage";
 import { formatIsoDate, parseIsoDate, timeToMinutes } from "@/lib/calendar-utils";
 import { getLunarInfoByIso } from "@/lib/lunar";
 
+import { getCalendarHolidays, calendarHolidayLabel, type CalendarHolidayRegion } from "@/lib/calendar-holidays";
+
 const WEEKDAY_CN = ["日", "一", "二", "三", "四", "五", "六"];
 const WEEK_LABEL = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 const HOUR_H = 48;
@@ -81,6 +83,7 @@ function layoutDayEvents(items: CalendarScheduleItem[]): PositionedEvent[] {
 export function CalendarDetailPage({
   initialDate,
   todayIso,
+  holidayRegion,
   itemsByDate,
   cycleMap,
   cyclePanel,
@@ -93,6 +96,7 @@ export function CalendarDetailPage({
 }: {
   initialDate: string;
   todayIso: string;
+  holidayRegion: CalendarHolidayRegion;
   itemsByDate: Map<string, CalendarScheduleItem[]>;
   cycleMap: Map<string, MenstrualDayState> | null;
   /** 经期打卡行（仅用户视图传入），渲染在周条下方 */
@@ -347,6 +351,9 @@ export function CalendarDetailPage({
               const iso = addDaysIso(weekStart, i);
               const d = parseIsoDate(iso);
               const lunar = getLunarInfoByIso(iso);
+              const holidays = getCalendarHolidays(iso, holidayRegion);
+              const holiday = holidays[0];
+              const holidayTitle = holidays.map(h => `${calendarHolidayLabel(h)} · ${h.englishName}`).join("；");
               const cycle = cycleMap?.get(iso) ?? null;
               return (
                 <button
@@ -356,10 +363,11 @@ export function CalendarDetailPage({
                   data-date={iso}
                   data-today={iso === todayIso ? "true" : undefined}
                   onClick={() => applySelection(iso, { fromStrip: true })}
-                  aria-label={`${d.getMonth() + 1}月${d.getDate()}日`}
+                  title={holidayTitle || undefined}
+                  aria-label={`${d.getMonth() + 1}月${d.getDate()}日${holidayTitle ? `，${holidayTitle}` : ""}`}
                 >
                   <span className="calendar-strip-num">{d.getDate()}</span>
-                  <span className="calendar-strip-lunar">{lunar?.cellLabel ?? ""}</span>
+                  <span className={`calendar-strip-lunar${holiday ? " calendar-holiday-label" : ""}`}>{holiday ? calendarHolidayLabel(holiday, true) : lunar?.cellLabel ?? ""}</span>
                   {cycle ? <i className="calendar-cycle-dot calendar-strip-cycle" data-type={cycle.type} aria-hidden="true" /> : null}
                 </button>
               );
@@ -381,6 +389,7 @@ export function CalendarDetailPage({
           {days.map(iso => {
             const d = parseIsoDate(iso);
             const lunar = getLunarInfoByIso(iso);
+            const holidays = getCalendarHolidays(iso, holidayRegion);
             return (
               <div key={iso} className="calendar-tl-day-head" data-today={iso === todayIso ? "true" : undefined}>
                 {daysPerPage >= 5 ? (
@@ -394,6 +403,12 @@ export function CalendarDetailPage({
                     <span>{lunar ? `${lunar.monthLabel}${lunar.isFirstDay ? "" : lunar.dayLabel}` : ""}</span>
                   </>
                 )}
+                {holidays.map(holiday => (
+                  <span key={holiday.id} className="calendar-holiday-banner" title={`${calendarHolidayLabel(holiday)} · ${holiday.englishName}`}>
+                    <span>{daysPerPage >= 5 ? calendarHolidayLabel(holiday, true) : calendarHolidayLabel(holiday)}</span>
+                    {daysPerPage < 5 ? <small>{holiday.englishName}{holiday.observed ? " · Observed" : ""}</small> : null}
+                  </span>
+                ))}
               </div>
             );
           })}

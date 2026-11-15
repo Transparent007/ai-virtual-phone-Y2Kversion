@@ -7,6 +7,8 @@ import type { MenstrualDayState } from "@/lib/menstrual-storage";
 import { formatIsoDate } from "@/lib/calendar-utils";
 import { getLunarInfoByIso } from "@/lib/lunar";
 
+import { getCalendarHolidays, calendarHolidayLabel, type CalendarHolidayRegion } from "@/lib/calendar-holidays";
+
 const MONTH_CN = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
 const WEEKDAY_CN = ["日", "一", "二", "三", "四", "五", "六"];
 
@@ -60,6 +62,7 @@ function buildMonths(todayIso: string): MonthBlock[] {
 
 export function CalendarMonthPage({
   todayIso,
+  holidayRegion,
   itemsByDate,
   cycleMap,
   ownerStrip,
@@ -68,6 +71,7 @@ export function CalendarMonthPage({
   onOpenTheme,
 }: {
   todayIso: string;
+  holidayRegion: CalendarHolidayRegion;
   itemsByDate: Map<string, CalendarScheduleItem[]>;
   cycleMap: Map<string, MenstrualDayState> | null;
   ownerStrip: ReactNode;
@@ -152,6 +156,9 @@ export function CalendarMonthPage({
             {block.weeks.map((week, wi) => (
               <div key={wi} className="calendar-month-week">
                 {week.map(cell => {
+                  const holidays = getCalendarHolidays(cell.iso, holidayRegion);
+                  const holiday = holidays[0];
+                  const holidayTitle = holidays.map(h => `${calendarHolidayLabel(h)} · ${h.englishName}`).join("；");
                   const items = itemsByDate.get(cell.iso);
                   const cycle = cycleMap?.get(cell.iso) ?? null;
                   return (
@@ -161,11 +168,12 @@ export function CalendarMonthPage({
                       className="calendar-month-cell"
                       data-today={cell.iso === todayIso ? "true" : undefined}
                       style={{ gridColumnStart: cell.weekday + 1 }}
-                      aria-label={`${block.month + 1}月${cell.day}日${items?.length ? `，${items.length}个日程` : ""}`}
+                      title={holidayTitle || undefined}
+                      aria-label={`${block.month + 1}月${cell.day}日${holidayTitle ? `，${holidayTitle}` : ""}${items?.length ? `，${items.length}个日程` : ""}`}
                       onClick={() => onPickDay(cell.iso)}
                     >
                       <span className="calendar-month-num">{cell.day}</span>
-                      <span className={`calendar-month-lunar${cell.lunarFirst ? " is-first" : ""}`}>{cell.lunarLabel}</span>
+                      <span className={`calendar-month-lunar${holiday ? " calendar-holiday-label" : cell.lunarFirst ? " is-first" : ""}`}>{holiday ? calendarHolidayLabel(holiday, true) : cell.lunarLabel}</span>
                       <span className="calendar-month-dots" aria-hidden="true">
                         {cycle ? <i className="calendar-cycle-dot" data-type={cycle.type} /> : null}
                         {items && items.length > 0 ? <i className="calendar-event-dot" data-color={items[0].colorKey} /> : null}
