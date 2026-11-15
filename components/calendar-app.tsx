@@ -13,6 +13,8 @@ import {
   CALENDAR_DAYS_PER_PAGE_OPTIONS,
   CALENDAR_THEME_IDS,
   deleteCalendarScheduleItem,
+  deleteCalendarRecurrenceSeries,
+  excludeCalendarRecurrenceDate,
   loadCalendarConfig,
   loadOwnerCalendarPlans,
   saveCalendarConfig,
@@ -301,6 +303,15 @@ export function PhoneCalendarApp({
       date: item.date,
       endDate: item.date,
       originalDate: item.date,
+      ...(item.recurrence ? {
+        date: item.recurrence.startDate,
+        endDate: item.recurrence.startDate,
+        repeatWeekly: true,
+        repeatWeekdays: [...item.recurrence.weekdays],
+        repeatUntil: item.recurrence.until,
+        recurrenceExcludedDates: item.recurrence.excludedDates || [],
+        seriesId: item.recurrence.seriesId,
+      } : {}),
       startTime: item.startTime,
       endTime: item.endTime,
       location: item.location,
@@ -317,6 +328,55 @@ export function PhoneCalendarApp({
       onNotice?.(error);
       return;
     }
+    if (editingItem.repeatWeekly) {
+      const start = parseIsoDate(editingItem.date);
+      const until = editingItem.repeatUntil || editingItem.date;
+      const end = parseIsoDate(until);
+      const weekdays = [...new Set(editingItem.repeatWeekdays || [])].filter(day => Number.isInteger(day) && day >= 0 && day <= 6);
+      const days = Math.round((Date.UTC(end.getFullYear(), end.getMonth(), end.getDate()) - Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())) / 86400000) + 1;
+      if (!Number.isFinite(days) || days < 1 || days > 366) {
+        onNotice?.("重复截止日期须在开始日期起一年内（最多 366 天）");
+        return;
+      }
+      if (!weekdays.length) {
+        onNotice?.("请至少选择一个重复星期");
+        return;
+      }
+      const dates: string[] = [];
+      for (let offset = 0; offset < days; offset++) {
+        const day = parseIsoDate(editingItem.date);
+        day.setDate(day.getDate() + offset);
+        const date = formatIsoDate(day);
+        if (weekdays.includes(day.getDay()) && !excludedDates.has(date)) dates.push(date);
+      }
+      if (!dates.length) {
+        onNotice?.("这个日期范围内没有选中的星期，请延长截止日期或调整星期");
+        return;
+      }
+      if (editingItem.seriesId && !window.confirm("将替换整组重复日程（包括过去日期），是否继续？")) return;
+      if (editingItem.seriesId) {
+        deleteCalendarRecurrenceSeries(selectedOwner.ownerType, selectedOwner.ownerId, editingItem.seriesId);
+      } else if (editingItem.id) {
+        deleteCalendarScheduleItem(selectedOwner.ownerType, selectedOwner.ownerId,
+          getWeekStartIso(parseIsoDate(editingItem.originalDate || editingItem.date)), editingItem.id);
+      }
+      const seriesId = editingItem.seriesId || `calendar_series_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const excludedDates = new Set(editingItem.recurrenceExcludedDates || []);
+      for (const date of dates) {
+        upsertCalendarScheduleItem(selectedOwner.ownerType, selectedOwner.ownerId, getWeekStartIso(parseIsoDate(date)), {
+          date, startTime: editingItem.startTime, endTime: editingItem.endTime,
+          location: editingItem.location, title: editingItem.title,
+          emoji: sanitizeScheduleEmoji(editingItem.emoji), source: "manual",
+          colorKey: editingItem.colorKey ?? pickScheduleColorKey(editingItem.startTime),
+          recurrence: { seriesId, startDate: editingItem.date, until, weekdays, excludedDates: [...excludedDates] },
+        });
+      }
+      setEditingItem(null);
+      refreshPlans();
+      window.dispatchEvent(new CustomEvent("calendar-updated"));
+      onNotice?.(`已保存 ${dates.length} 次重复日程`);
+      return;
+    }
     const startDate = editingItem.date;
     const endDate = editingItem.endDate || editingItem.date;
     if (endDate < startDate) {
@@ -327,6 +387,10 @@ export function PhoneCalendarApp({
     if (dayCount > 31) {
       onNotice?.("一次最多创建 31 天的日程");
       return;
+    }
+    if (editingItem.seriesId) {
+      if (!window.confirm("取消重复并替换整组日程（包括过去日期），是否继续？")) return;
+      deleteCalendarRecurrenceSeries(selectedOwner.ownerType, selectedOwner.ownerId, editingItem.seriesId);
     }
     const firstWeekStart = getWeekStartIso(parseIsoDate(startDate));
     // 跨周移动：先从原来的周删除
@@ -360,6 +424,24 @@ export function PhoneCalendarApp({
 
   const handleDeleteItem = () => {
     if (!selectedOwner || !editingItem?.id) return;
+    if (editingItem.seriesId) {
+      const choice = window.prompt("删除重复日程：输入 1 仅删除这一次，输入 2 删除整组。取消请输入其他内容。", "1");
+      if (choice === "1") {
+        excludeCalendarRecurrenceDate(selectedOwner.ownerType, selectedOwner.ownerId, editingItem.seriesId, editingItem.originalDate || editingItem.date);
+        setEditingItem(null);
+        refreshPlans();
+        window.dispatchEvent(new CustomEvent("calendar-updated"));
+        onNotice?.("本次日程已删除，之后编辑整组时也不会恢复");
+        return;
+      }
+      if (choice !== "2" || !window.confirm("删除整组重复日程（包括过去日期）？此操作不可撤销。")) return;
+      deleteCalendarRecurrenceSeries(selectedOwner.ownerType, selectedOwner.ownerId, editingItem.seriesId);
+      setEditingItem(null);
+      refreshPlans();
+      window.dispatchEvent(new CustomEvent("calendar-updated"));
+      onNotice?.("整组重复日程已删除");
+      return;
+    }
     const targetWeekStart = getWeekStartIso(parseIsoDate(editingItem.originalDate || editingItem.date));
     deleteCalendarScheduleItem(selectedOwner.ownerType, selectedOwner.ownerId, targetWeekStart, editingItem.id);
     setEditingItem(null);

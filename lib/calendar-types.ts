@@ -21,6 +21,14 @@ export type CalendarScheduleItem = {
   /** 事项 emoji 图标（可选，一个 emoji） */
   emoji?: string;
   colorKey: CalendarColorKey;
+  /** 有限日期范围的每周重复组；编辑/删除时作用于整组 */
+  recurrence?: {
+    seriesId: string;
+    startDate: string;
+    until: string;
+    weekdays: number[]; // JavaScript weekday: 0=周日，1=周一
+    excludedDates?: string[]; // 从重复组中单独删除的日期
+  };
   source: "manual" | "generated";
   createdAt: string;
   updatedAt: string;
