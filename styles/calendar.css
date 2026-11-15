@@ -1541,6 +1541,7 @@
   font-weight: 600;
   max-width: 100%;
   overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
 }
 .calendar-tl-headrow:has(.calendar-holiday-banner) .calendar-tl-day-head {
@@ -1550,8 +1551,10 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  max-width: calc(100% - 8px);
-  padding: 3px 5px;
+  width: calc(100% - 4px);
+  max-width: calc(100% - 4px);
+  box-sizing: border-box;
+  padding: 3px 1px;
   border-radius: 5px;
   background: var(--c-calendar-surface-2);
   color: var(--c-calendar-today);
@@ -1560,6 +1563,10 @@
 }
 .calendar-tl-day-head .calendar-holiday-banner span {
   color: inherit;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 600;
   font-size: calc(10px * var(--app-text-scale, 1));
 }
