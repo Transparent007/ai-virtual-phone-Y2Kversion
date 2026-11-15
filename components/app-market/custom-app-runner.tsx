@@ -697,51 +697,76 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
+// A second picker must also release a first picker whose OS cancel event was lost.
+let cancelActiveCustomAppMediaPicker: (() => void) | null = null;
+
 async function pickCustomAppMedia(record: Record<string, unknown>): Promise<Record<string, unknown>> {
+  cancelActiveCustomAppMediaPicker?.();
   return new Promise((resolve, reject) => {
     const input = document.createElement("input");
     input.type = "file";
-    // iOS「文件」App 对宽泛的 audio/* / video/* 常把具体文件灰掉,补上常见扩展名兜底
     let accept = typeof record.accept === "string" ? record.accept : "";
     if (accept === "audio/*") accept = "audio/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.opus";
     else if (accept === "video/*") accept = "video/*,.mp4,.mov,.m4v,.webm";
     input.accept = accept;
     input.multiple = record.multiple === true;
-    input.style.position = "fixed";
-    input.style.left = "-9999px";
-    input.style.top = "-9999px";
+    input.tabIndex = -1;
+    input.setAttribute("aria-hidden", "true");
+    Object.assign(input.style, { position: "fixed", left: "0", top: "0", width: "1px", height: "1px", opacity: "0", pointerEvents: "none" });
     document.body.appendChild(input);
+    let settled = false;
+    let reading = false;
+    let resumeTimer: number | undefined;
     const cleanup = () => {
+      if (resumeTimer !== undefined) window.clearTimeout(resumeTimer);
+      input.removeEventListener("cancel", onCancel);
+      input.removeEventListener("change", onChange);
+      window.removeEventListener("focus", onResume);
+      window.removeEventListener("pageshow", onResume);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (document.activeElement === input) input.blur();
       input.remove();
-      window.removeEventListener("focus", handleFocus);
+      if (cancelActiveCustomAppMediaPicker === cancel) cancelActiveCustomAppMediaPicker = null;
     };
-    const handleFocus = () => {
-      window.setTimeout(() => {
-        if (!input.files || input.files.length === 0) {
-          cleanup();
-          resolve({ canceled: true, files: [] });
-        }
-      }, 600);
+    const finish = (result?: Record<string, unknown>, error?: unknown) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve(result || { canceled: true, files: [] });
     };
-    input.onchange = async () => {
+    const cancel = () => finish({ canceled: true, files: [] });
+    const onCancel = () => { if (!reading) cancel(); };
+    const onResume = () => {
+      if (settled || reading) return;
+      if (resumeTimer !== undefined) window.clearTimeout(resumeTimer);
+      // Fallback for older pickers that omit cancel; change/selected files always win.
+      resumeTimer = window.setTimeout(() => {
+        if (!reading && document.visibilityState !== "hidden" && !input.files?.length) cancel();
+      }, 2000);
+    };
+    const onVisibilityChange = () => { if (document.visibilityState === "visible") onResume(); };
+    const onChange = async () => {
+      if (settled || reading) return;
+      reading = true;
+      if (resumeTimer !== undefined) window.clearTimeout(resumeTimer);
       try {
         const files = Array.from(input.files ?? []);
+        if (!files.length) { finish({ canceled: true, files: [] }); return; }
         const limit = Math.max(1, Math.min(20, Number(record.limit ?? files.length) || files.length || 1));
         const picked = await Promise.all(files.slice(0, limit).map(async file => ({
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          dataUrl: await fileToDataUrl(file),
+          name: file.name, type: file.type, size: file.size, dataUrl: await fileToDataUrl(file),
         })));
-        cleanup();
-        resolve({ canceled: false, files: picked, file: picked[0] ?? null });
-      } catch (error) {
-        cleanup();
-        reject(error);
-      }
+        finish({ canceled: false, files: picked, file: picked[0] ?? null });
+      } catch (error) { finish(undefined, error); }
     };
-    window.addEventListener("focus", handleFocus);
-    input.click();
+    input.addEventListener("cancel", onCancel);
+    input.addEventListener("change", onChange);
+    window.addEventListener("focus", onResume);
+    window.addEventListener("pageshow", onResume);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    cancelActiveCustomAppMediaPicker = cancel;
+    try { input.click(); } catch (error) { finish(undefined, error); }
   });
 }
 
