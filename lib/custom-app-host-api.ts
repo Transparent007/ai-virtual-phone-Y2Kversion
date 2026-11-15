@@ -38,7 +38,7 @@ import {
   replaceCalendarWeekItems,
   upsertCalendarScheduleItem,
 } from "./calendar-storage";
-import type { CalendarOwnerType, CalendarScheduleItem } from "./calendar-types";
+import type { CalendarOwnerType, CalendarScheduleItem, CalendarWeekPlan } from "./calendar-types";
 import { formatIsoDate, getWeekStartIso, normalizeTime } from "./calendar-utils";
 import { simpleLLMCall } from "./api-helpers";
 import { generateEmbedding } from "./memory-embedding";
@@ -344,7 +344,7 @@ function resolveCalendarOwner(record: Record<string, unknown>): { ownerType: Cal
   const ownerType: CalendarOwnerType = rawOwnerType === "character" || record.characterId ? "character" : "user";
   const ownerId = ownerType === "character"
     ? cleanText(record.ownerId ?? record.characterId, 160)
-    : resolveUserIdentity()?.id || "default_user";
+    : "self"; // Native calendar uses the identity-scoped user:self owner.
   if (!ownerId) throw new Error("calendar 缺少 ownerId 或 characterId。");
   return { ownerType, ownerId };
 }
@@ -1207,19 +1207,23 @@ export function writeCustomAppCalendar(record: Record<string, unknown>): Record<
   const operation = cleanText(record.operation ?? record.action, 40) || (record.items ? "replace" : "upsert");
   const { ownerType, ownerId } = resolveCalendarOwner(record);
   const weekStart = normalizeWeekStart(record);
+  const saved = (plan: CalendarWeekPlan) => {
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("calendar-updated"));
+    return { ok: true, plan };
+  };
   if (operation === "delete") {
     const itemId = cleanText(record.itemId ?? record.id, 120);
     if (!itemId) throw new Error("calendar.delete 需要 itemId。");
-    return { ok: true, plan: deleteCalendarScheduleItem(ownerType, ownerId, weekStart, itemId) };
+    return saved(deleteCalendarScheduleItem(ownerType, ownerId, weekStart, itemId));
   }
   if (operation === "replace") {
     const rawItems = Array.isArray(record.items) ? record.items : [];
     const items = rawItems.map((item, index) => normalizeCalendarItem(asRecord(item), index));
-    return { ok: true, plan: replaceCalendarWeekItems(ownerType, ownerId, weekStart, items as CalendarScheduleItem[]) };
+    return saved(replaceCalendarWeekItems(ownerType, ownerId, weekStart, items as CalendarScheduleItem[]));
   }
   const itemRecord = asRecord(record.item);
   const item = normalizeCalendarItem(Object.keys(itemRecord).length > 0 ? itemRecord : record);
-  return { ok: true, plan: upsertCalendarScheduleItem(ownerType, ownerId, weekStart, item) };
+  return saved(upsertCalendarScheduleItem(ownerType, ownerId, weekStart, item));
 }
 
 export function readCustomAppWorld(record: Record<string, unknown>): Record<string, unknown> {
