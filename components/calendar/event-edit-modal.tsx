@@ -97,7 +97,7 @@ export function CalendarEventEditModal({
               <label className="menu-desc">重复截止日期（含当天，最多一年）</label>
               <Input type="date" min={draft.date} value={draft.repeatUntil || draft.date}
                 onChange={e => onChange({ ...draft, repeatUntil: e.target.value })} />
-              <p className="menu-desc">从开始日期到截止日期，仅在选中的星期创建日程；结束日期仅用于不重复模式。</p>
+              <p className="menu-desc">从开始日期到重复截止日期（含当天），仅在选中的星期创建日程。</p>
             </> : null}
             {draft.seriesId ? <p className="menu-desc">保存或删除作用于整组重复日程，包括过去的日期。开始日期为整组起始日期。</p> : null}
           </div>
@@ -111,20 +111,20 @@ export function CalendarEventEditModal({
                   const nextDate = e.target.value;
                   const currentEnd = draft.endDate || draft.date;
                   // 结束日期跟随开始日期，除非用户已把结束日期改到更晚
-                  onChange({ ...draft, date: nextDate, endDate: currentEnd > nextDate ? currentEnd : nextDate });
+                  onChange({ ...draft, date: nextDate, endDate: currentEnd > nextDate ? currentEnd : nextDate,
+                    repeatUntil: (draft.repeatUntil || draft.date) > nextDate ? draft.repeatUntil : nextDate });
                 }}
               />
             </div>
-            <div className="flex flex-col gap-1">
+            {!draft.repeatWeekly ? <div className="flex flex-col gap-1">
               <label className="menu-desc ml-1">结束日期</label>
               <Input
                 type="date"
                 value={draft.endDate || draft.date}
-                disabled={draft.repeatWeekly}
                 min={draft.date}
                 onChange={e => onChange({ ...draft, endDate: e.target.value })}
               />
-            </div>
+            </div> : null}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
