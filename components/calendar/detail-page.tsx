@@ -367,7 +367,7 @@ export function CalendarDetailPage({
                   aria-label={`${d.getMonth() + 1}月${d.getDate()}日${holidayTitle ? `，${holidayTitle}` : ""}`}
                 >
                   <span className="calendar-strip-num">{d.getDate()}</span>
-                  <span className={`calendar-strip-lunar${holiday ? " calendar-holiday-label" : ""}`}>{holiday ? calendarHolidayLabel(holiday, true) : lunar?.cellLabel ?? ""}</span>
+                  <span className={`calendar-strip-lunar${holiday ? " calendar-holiday-label" : ""}`}>{holiday ? `${holiday.shortName}${holiday.observed ? "·补" : ""}` : lunar?.cellLabel ?? ""}</span>
                   {cycle ? <i className="calendar-cycle-dot calendar-strip-cycle" data-type={cycle.type} aria-hidden="true" /> : null}
                 </button>
               );
@@ -405,8 +405,8 @@ export function CalendarDetailPage({
                 )}
                 {holidays.map(holiday => (
                   <span key={holiday.id} className="calendar-holiday-banner" title={`${calendarHolidayLabel(holiday)} · ${holiday.englishName}`}>
-                    <span>{daysPerPage >= 5 ? calendarHolidayLabel(holiday, true) : calendarHolidayLabel(holiday)}</span>
-                    {daysPerPage < 5 ? <small>{holiday.englishName}{holiday.observed ? " · Observed" : ""}</small> : null}
+                    <span>{daysPerPage >= 5 ? holiday.shortName : calendarHolidayLabel(holiday)}</span>
+                    {daysPerPage < 5 ? <small>{holiday.englishName}{holiday.observed ? " · Observed" : ""}</small> : holiday.observed ? <small>补休</small> : null}
                   </span>
                 ))}
               </div>
