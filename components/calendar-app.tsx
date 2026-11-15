@@ -613,6 +613,7 @@ export function PhoneCalendarApp({
         {view === "month" ? (
           <CalendarMonthPage
             todayIso={todayIso}
+            holidayRegion={config.holidayRegion}
             itemsByDate={itemsByDate}
             cycleMap={cycleMap}
             ownerStrip={ownerStrip}
@@ -625,6 +626,7 @@ export function PhoneCalendarApp({
             key={detailKey}
             initialDate={selectedDate}
             todayIso={todayIso}
+            holidayRegion={config.holidayRegion}
             itemsByDate={itemsByDate}
             cycleMap={cycleMap}
             cyclePanel={cyclePanel}
@@ -726,6 +728,20 @@ export function PhoneCalendarApp({
               ))}
             </div>
 
+            <div className="calendar-holiday-settings">
+              <label htmlFor="calendar-holiday-region">节假日地区</label>
+              <select id="calendar-holiday-region" className="ui-input" value={config.holidayRegion}
+                onChange={e => {
+                  const nextConfig = { ...config, holidayRegion: e.target.value === "none" ? "none" as const : "US" as const };
+                  setConfig(nextConfig);
+                  saveCalendarConfig(nextConfig);
+                }}>
+                <option value="US">美国 · 联邦节假日</option>
+                <option value="none">不显示节假日</option>
+              </select>
+              <p>自动显示节日当天及周末补休，不占用你的日程。学校、州与公司的放假安排可能不同。</p>
+              <a href="https://www.opm.gov/policy-data-oversight/pay-leave/federal-holidays/" target="_blank" rel="noreferrer">查看美国 OPM 官方日历</a>
+            </div>
             <div className="calendar-theme-css-label">自定义 CSS</div>
             <textarea
               className="calendar-css-textarea"
