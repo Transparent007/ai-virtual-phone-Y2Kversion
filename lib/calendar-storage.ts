@@ -15,6 +15,8 @@ import {
 } from "./calendar-utils";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 
+import type { CalendarHolidayRegion } from "./calendar-holidays";
+
 const STORAGE_KEY = "ai_phone_calendar_plans_v1";
 const CALENDAR_CONFIG_KEY = "ai_phone_calendar_config_v1";
 registerKvMigration(STORAGE_KEY);
@@ -29,12 +31,14 @@ export type CalendarConfig = {
   theme: string;
   /** 详情页时间轴一页显示的天数（1/2/3/5/7），默认 2 */
   daysPerPage: number;
+  holidayRegion: CalendarHolidayRegion;
 };
 
 const DEFAULT_CALENDAR_CONFIG: CalendarConfig = {
   autoGenerateEnabled: false,
   theme: "light",
   daysPerPage: 2,
+  holidayRegion: "US",
 };
 
 export const CALENDAR_DAYS_PER_PAGE_OPTIONS = [1, 2, 3, 5, 7] as const;
@@ -87,6 +91,7 @@ export function loadCalendarConfig(): CalendarConfig {
     const parsed = { ...DEFAULT_CALENDAR_CONFIG, ...JSON.parse(raw) } as CalendarConfig;
     parsed.theme = normalizeCalendarTheme(parsed.theme);
     parsed.daysPerPage = normalizeCalendarDaysPerPage(parsed.daysPerPage);
+    parsed.holidayRegion = parsed.holidayRegion === "none" ? "none" : "US";
     return parsed;
   } catch {
     return { ...DEFAULT_CALENDAR_CONFIG };
@@ -385,6 +390,17 @@ export function normalizeGeneratedScheduleItems(
   );
 }
 
+function normalizeScheduleTitleForDedup(title: string): string {
+  return title.toLocaleLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "").trim();
+}
+
+function isGeneratedDuplicateOfManual(generated: CalendarScheduleItem, manual: CalendarScheduleItem): boolean {
+  return generated.date === manual.date
+    && generated.startTime === manual.startTime
+    && generated.endTime === manual.endTime
+    && normalizeScheduleTitleForDedup(generated.title) === normalizeScheduleTitleForDedup(manual.title);
+}
+
 export function cloneWeekPlanWithManualEdits(
   ownerType: CalendarOwnerType,
   ownerId: string,
@@ -393,7 +409,9 @@ export function cloneWeekPlanWithManualEdits(
 ): CalendarWeekPlan {
   const existing = loadCalendarWeekPlan(ownerType, ownerId, weekStart);
   const manualItems = (existing?.items ?? []).filter(item => item.source === "manual");
-  const nextItems = [...generatedItems.filter(item => item.source !== "manual")];
+  const nextItems = generatedItems
+    .filter(item => item.source !== "manual")
+    .filter(item => !manualItems.some(manual => isGeneratedDuplicateOfManual(item, manual)));
   for (const item of manualItems) {
     const collides = nextItems.find(
       entry =>
