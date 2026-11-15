@@ -342,6 +342,7 @@ export function PhoneCalendarApp({
         onNotice?.("请至少选择一个重复星期");
         return;
       }
+      const excludedDates = new Set(editingItem.recurrenceExcludedDates || []);
       const dates: string[] = [];
       for (let offset = 0; offset < days; offset++) {
         const day = parseIsoDate(editingItem.date);
@@ -361,7 +362,6 @@ export function PhoneCalendarApp({
           getWeekStartIso(parseIsoDate(editingItem.originalDate || editingItem.date)), editingItem.id);
       }
       const seriesId = editingItem.seriesId || `calendar_series_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const excludedDates = new Set(editingItem.recurrenceExcludedDates || []);
       for (const date of dates) {
         upsertCalendarScheduleItem(selectedOwner.ownerType, selectedOwner.ownerId, getWeekStartIso(parseIsoDate(date)), {
           date, startTime: editingItem.startTime, endTime: editingItem.endTime,
