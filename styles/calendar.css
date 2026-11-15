@@ -1533,3 +1533,51 @@
     animation: none !important;
   }
 }
+
+/* Built-in holiday labels are separate from personal timed schedules. */
+.calendar-month-lunar.calendar-holiday-label,
+.calendar-strip-lunar.calendar-holiday-label {
+  color: var(--c-calendar-today);
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.calendar-tl-headrow:has(.calendar-holiday-banner) .calendar-tl-day-head {
+  height: 98px;
+}
+.calendar-tl-day-head .calendar-holiday-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: calc(100% - 8px);
+  padding: 3px 5px;
+  border-radius: 5px;
+  background: var(--c-calendar-surface-2);
+  color: var(--c-calendar-today);
+  line-height: 1.2;
+  text-align: center;
+}
+.calendar-tl-day-head .calendar-holiday-banner span {
+  color: inherit;
+  font-weight: 600;
+  font-size: calc(10px * var(--app-text-scale, 1));
+}
+.calendar-holiday-banner small {
+  font-size: calc(9px * var(--app-text-scale, 1));
+  color: var(--c-calendar-sub);
+}
+.calendar-holiday-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+.calendar-holiday-settings p,
+.calendar-holiday-settings a {
+  margin: 0;
+  font-size: 11px;
+  color: var(--c-calendar-sub);
+  line-height: 1.5;
+}
