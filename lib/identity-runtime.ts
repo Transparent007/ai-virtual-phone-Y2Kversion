@@ -8,6 +8,7 @@ const PRIVATE_PREFIX = "identity:";
 
 const SHARED_KEYS = new Set([
   "ai_phone_user_identities_v1", IDENTITY_ACCESS_KEY, IDENTITY_BASE_BINDING_KEY,
+  "float_character_memory_sharing_v1",
   "ai_phone_characters_v1", "ai_phone_bg_items_v1", "ai_phone_character_versions_v1",
   "ai_phone_api_configs_v1", "ai_phone_voice_configs_v1", "ai_phone_image_generation_settings_v1",
   "ai_phone_presets_v1", "ai_phone_worldbooks_v1", "ai_phone_regexes_v1", "ai_phone_settings_idb_migrated_v1",

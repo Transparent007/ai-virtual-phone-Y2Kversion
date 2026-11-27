@@ -1,3 +1,4 @@
+import { buildMemorySummaryIdentityContext } from "./identity-memory-sharing";
 import type { MemoryEntry } from "./memory-types";
 import { DEFAULT_CORE_MEMORY_PROMPT } from "./memory-types";
 import {
@@ -84,7 +85,7 @@ export async function runCoreMemoryPipeline(
 
     const result = await simpleLLMCall(
         apiConfig,
-        [{ role: "user", content: prompt }],
+        [{ role: "user", content: buildMemorySummaryIdentityContext() + prompt }],
         { temperature: 0.3 },
     );
 

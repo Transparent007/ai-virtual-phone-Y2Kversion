@@ -6,6 +6,8 @@ import { loadMemoryEntriesByType } from "./memory-storage";
 import { resolveAuxiliaryApiConfig } from "./settings-storage";
 import { generateEmbedding, resolveEmbeddingModel, cosineSimilarity } from "./memory-embedding";
 import { estimateTokens } from "./token-counter";
+import { attributeIdentityMemory, isCharacterMemoryShared, loadOtherIdentityMemories } from "./identity-memory-sharing";
+import { getCurrentIdentityId } from "./identity-runtime";
 
 /**
  * Retrieve relevant long-term memories for prompt injection.
@@ -20,7 +22,7 @@ export async function retrieveMemoriesForPrompt(
     currentContext: string,
     config: MemoryConfig
 ): Promise<MemoryEntry[]> {
-    const longTermEntries = await loadMemoryEntriesByType(characterId, "long_term");
+    const longTermEntries = await loadPromptMemoryEntries(characterId, "long_term", config.shortTermAllowedSources?.chat !== false);
     if (longTermEntries.length === 0 || !currentContext.trim()) return [];
 
     const budget = config.longTermTokenBudget;
@@ -48,7 +50,8 @@ export async function retrieveMemoriesForPrompt(
                     score: cosineSimilarity(queryEmbedding, entry.embedding!),
                 }));
                 scored.sort((a, b) => b.score - a.score);
-                return fillByBudget(scored.map(s => s.entry), budget);
+                // Recent excerpts have no embedding yet; keep them eligible for recall.
+                return fillByBudget([...scored.map(s => s.entry), ...longTermEntries.filter(entry => !entry.embedding?.length)], budget);
             }
         }
     }
@@ -64,7 +67,7 @@ export async function retrieveCoreMemoriesForPrompt(
     characterId: string,
     config: MemoryConfig,
 ): Promise<MemoryEntry[]> {
-    const coreEntries = await loadMemoryEntriesByType(characterId, "core");
+    const coreEntries = await loadPromptMemoryEntries(characterId, "core");
     if (coreEntries.length === 0) return [];
 
     const sorted = [...coreEntries].sort((a, b) => {
@@ -79,13 +82,39 @@ export async function retrieveCoreMemoriesForPrompt(
     return fillByBudget(sorted, config.coreMemoryTokenBudget);
 }
 
+/** Shared recall reads other scopes explicitly; normal storage APIs stay isolated. */
+async function loadPromptMemoryEntries(characterId: string, type: MemoryEntry["type"], includeRecentChat = true): Promise<MemoryEntry[]> {
+    const current = await loadMemoryEntriesByType(characterId, type);
+    const ownerId = getCurrentIdentityId();
+    if (!ownerId || !isCharacterMemoryShared(characterId)) return current;
+    const peers = await loadOtherIdentityMemories(characterId, type, includeRecentChat);
+    return [...current.map(entry => attributeIdentityMemory(entry, ownerId)), ...peers];
+}
+
+/** Round-robin owners so a busy identity cannot erase the other person's recall budget. */
+function balanceMemoryOwners(entries: MemoryEntry[]): MemoryEntry[] {
+    const owners = new Map<string, MemoryEntry[]>();
+    for (const entry of entries) {
+        const owner = String(entry.metadata?.sourceIdentityId || "current");
+        const group = owners.get(owner) || [];
+        group.push(entry); owners.set(owner, group);
+    }
+    if (owners.size < 2) return entries;
+    const groups = [...owners.values()];
+    const result: MemoryEntry[] = [];
+    for (let i = 0; groups.some(group => i < group.length); i++) {
+        for (const group of groups) if (group[i]) result.push(group[i]);
+    }
+    return result;
+}
+
 /** Pick entries in order until token budget is exhausted. */
 function fillByBudget(entries: MemoryEntry[], budget: number): MemoryEntry[] {
     const result: MemoryEntry[] = [];
     let used = 0;
-    for (const entry of entries) {
+    for (const entry of balanceMemoryOwners(entries)) {
         const tokens = estimateTokens(entry.content) + 4;
-        if (used + tokens > budget) break;
+        if (used + tokens > budget) continue;
         result.push(entry);
         used += tokens;
     }
