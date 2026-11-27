@@ -1,3 +1,4 @@
+import { buildIdentityMemoryContext } from "./identity-memory-sharing";
 import { listeningRoomPrompt, CHARACTER_LISTENING_INVITE_PROTOCOL } from "./listen-together";
 import { forwardedChatPrompt } from "./chat-forward-types";
 // lib/llm-prompt-assembler.ts
@@ -1207,6 +1208,8 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
     if (appId === "chat") {
         if (together) finalPayload.push({ role: "system", content: together, _debugMeta: { marker: "listen_together" } });
     }
+    const identityMemory = buildIdentityMemoryContext(character.id);
+    if (identityMemory) finalPayload.push({ role: "system", content: identityMemory, _debugMeta: { marker: "identity_memory_ownership" } });
     applyMomentsBilingualProtocol(finalPayload, appId, activeTags, input.chatBilingualInstruction);
     return finalPayload;
 }
@@ -2400,6 +2403,10 @@ export function assembleGroupPromptPayload(input: GroupAssemblerInput): LLMMessa
         }
     }
 
+    for (const member of members) {
+        const identityMemory = buildIdentityMemoryContext(member.character.id);
+        if (identityMemory) finalPayload.push({ role: "system", content: `角色 ${member.character.name}：\n${identityMemory}`, _debugMeta: { marker: "identity_memory_ownership" } });
+    }
     applyMomentsBilingualProtocol(finalPayload, "group_chat", activeTags);
     return finalPayload;
 }

@@ -62,6 +62,7 @@ import { hydrateKvDb } from "@/lib/kv-db";
 import type { UserIdentity } from "@/components/settings/user-identity";
 import { switchPhoneIdentity } from "@/lib/identity-lifecycle";
 import { getCharacterIdentityAccess, setCharacterIdentityAccess } from "@/lib/identity-access";
+import { isCharacterMemoryShared, setCharacterMemoryShared } from "@/lib/identity-memory-sharing";
 import { getCurrentIdentityId, hasActiveIdentity } from "@/lib/identity-runtime";
 import { loadCharacters } from "@/lib/character-storage";
 import type { Character } from "@/lib/character-types";
@@ -652,7 +653,23 @@ export function BindingManager() {
     );
 
     const renderCharacterSlotCards = () => (
-        renderBindingSlotCards(currentSlot, inheritLabel, setActiveSlotSheetField)
+        <>
+            {renderBindingSlotCards(currentSlot, inheritLabel, setActiveSlotSheetField)}
+            {level === "character" && selectedCharId && (
+                <label className="menu-item mt-3 flex items-center gap-3 rounded-2xl p-4">
+                    <Brain size={22} aria-hidden="true" />
+                    <span className="flex-1">
+                        <span className="menu-label block">跨身份记忆</span>
+                        <span className="menu-desc block">同一个角色认识所有可互动身份；带姓名与身份 ID 读取各自记忆和近期私聊，分清与谁发生。聊天记录仍分开保存。其他身份的经历将发送给当前使用的模型。</span>
+                    </span>
+                    <input type="checkbox" aria-label="跨身份记忆" checked={isCharacterMemoryShared(selectedCharId)}
+                        onChange={event => {
+                            setCharacterMemoryShared(selectedCharId, event.target.checked);
+                            setConfig(previous => ({ ...previous }));
+                        }} />
+                </label>
+            )}
+        </>
     );
 
     // 全局层不允许"未设置"的三项（API/预设/身份）：留空只会触发静默兜底，

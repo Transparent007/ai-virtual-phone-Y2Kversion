@@ -1,3 +1,4 @@
+import { buildMemorySummaryIdentityContext } from "./identity-memory-sharing";
 // lib/memory-summarizer.ts
 // Auto-summarization engine: summarizes short-term events into long-term memories.
 // Trigger: every N events (configurable). Short-term events are NOT deleted after summarization.
@@ -105,7 +106,7 @@ export async function runSummarizationPipeline(
     // label 用于在「底层调用大模型日志」中标识这是记忆总结调用
     const result = await simpleLLMCall(
         apiConfig,
-        [{ role: "user", content: summaryPrompt }],
+        [{ role: "user", content: buildMemorySummaryIdentityContext() + summaryPrompt }],
         { temperature: 0.3, label: `记忆总结·${characterName}` },
     );
 

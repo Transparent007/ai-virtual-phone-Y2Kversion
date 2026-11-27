@@ -1,3 +1,4 @@
+import { getCurrentIdentityId } from "./identity-runtime";
 // lib/memory-storage.ts
 // IndexedDB persistence for long-term memory entries + short-term events + localStorage config.
 
@@ -59,7 +60,7 @@ export async function saveMemoryEntry(entry: MemoryEntry): Promise<void> {
     if (!db) return;
     try {
         const tx = db.transaction(STORE_NAME, "readwrite");
-        tx.objectStore(STORE_NAME).put(entry);
+        tx.objectStore(STORE_NAME).put({ ...entry, metadata: { ...entry.metadata, sourceIdentityId: getCurrentIdentityId() } });
         await new Promise<void>((res, rej) => {
             tx.oncomplete = () => res();
             tx.onerror = () => rej(tx.error);
